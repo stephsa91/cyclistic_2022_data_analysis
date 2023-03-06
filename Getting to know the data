@@ -1,0 +1,489 @@
+### Create one combined dataset using the 12 monthly files of 2022 divvy trips data ###
+
+CREATE OR REPLACE TABLE  cyclistic_data_2022.all_trips_2022 AS
+  SELECT *
+  FROM(
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.jan1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.feb1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.mar1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.apr1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.may1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.may2_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.jun1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.jun2_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.jul1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.jul2_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.aug1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.aug2_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.sep1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.sep2_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.oct1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.oct2_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.nov1_2022_tripdata`
+    UNION ALL
+    SELECT *
+    FROM `cyclisticcapstone-377116.cyclistic_data_2022.dec1_2022_tripdata`
+    );
+
+/* 
+Overview of combined dataset:
+- There are a total of 5 667 717 rows in the data set
+- Due to BigQuery limiting upload files to 100mb, I had to split some of the months into 2 files in excel
+- The follwoing fields are present: ride_id, rideable_type, started_at, ended_at, start_station_name, start_station_id, end_station_name, end_station_id, start_at, start_lng, end_lat, end_lng, member_casual 
+*/
+
+### Getting to know the Data ###
+
+
+## Check the ride_id field (string data type) for NULLS, duplicate values and character length ##
+
+SELECT
+  COUNT(*)
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  ride_id IS NULL;
+
+SELECT
+  COUNT(DISTINCT ride_id)
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`;
+
+SELECT
+  LENGTH(ride_id) AS letters_in_ride_id,
+  COUNT(ride_id) AS num_of_ride_id
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  LENGTH(ride_id);
+
+/* 
+ride_id findings:
+- There are no NULLS in the ride_id field
+- There are 5 667 710 distinct ride IDs indicating that there are a few duplicates
+- The bulk of the ride IDs are 16 characters in length, however, 2 863 ride IDs have fewer characters. 
+- During data cleaning, duplicate ride IDs and ride IDs with fewer than 16 characters will be removed 
+*/ 
+
+
+## Check the rideable_type field (string data type) for NULLS and review bike types ##
+
+SELECT
+  COUNT(*)
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  rideable_type IS NULL;
+
+SELECT
+  rideable_type,
+  COUNT(rideable_type) AS rideable_type_count
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  rideable_type;
+
+SELECT
+  rideable_type,
+  AVG(TIMESTAMP_DIFF(ended_at, started_at, MINUTE)) AS trip_duration_mins
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  rideable_type;
+
+/* 
+rideable_type findings:
+- There are no NULLS in the rideable_type field
+- There are 3 categories of bike: electric, classic and docked
+- Unsure what "docked" bike means and am unable to find an explanation of this on the Divvy site or anywhere else. The average trip duration for docked bikes are considerably higher than electric and classic bikes. Trips associated with docked bikes will be removed in data cleaning.
+*/ 
+
+
+## Review the started_at field (timestamp data type) field for NULLS ##
+
+SELECT
+  COUNT(*) as count_of_null
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  started_at IS NULL;
+
+/* 
+There are no NULLS in the started_at field
+*/
+
+## Check the ended_at field (datatype = timestamp) for NULLS ##
+SELECT
+  COUNT(*) as count_of_null
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  ended_at IS NULL;
+
+/* 
+There are no NULLS in the ended_at field
+*/
+
+
+## Exploring trip duration ##
+
+SELECT
+  started_at,
+  ended_at,
+  TIMESTAMP_DIFF(ended_at, started_at, MINUTE) AS trip_duration_mins
+FROM
+   `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+LIMIT 100;
+
+SELECT
+  started_at,
+  ended_at,
+  TIMESTAMP_DIFF(ended_at, started_at, MINUTE) AS trip_duration_mins
+FROM
+   `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  TIMESTAMP_DIFF(ended_at, started_at, MINUTE) < 1
+ORDER BY
+  trip_duration_mins ASC;
+
+SELECT
+  started_at,
+  ended_at,
+  TIMESTAMP_DIFF(ended_at, started_at, MINUTE) AS trip_duration_mins
+FROM
+   `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  TIMESTAMP_DIFF(ended_at, started_at, MINUTE) >= 1440;
+
+/* trip duration findings:
+- According to the Divvy Website, trips that are below 60 seconds potential false starts or users trying to re-dock a bike to ensure it was secur, and trips that are more than 24 hours are likely bikes that are taken by staff as they service and inspect the system. 
+- There are 82 626 rows in the data with a trip duration of less than a minute, with one trip duration reading being -10 353 minutes. All these will be removed during cleaning.
+- There are 5 5362 rows in the data with a trip duration of more than 24 hours (1 440 minutes). All these will be removed during cleaning.
+*/
+
+
+## Check the start_station_name field (datatype = string) for NULLS and start station popularity ##
+
+# Check for NULLS #
+SELECT
+  COUNT(*) as count_of_null
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  start_station_name IS NULL;
+
+# Get number of unique start station names and view the most popular start station #
+SELECT
+  start_station_name,
+  COUNT(start_station_name) AS start_station_occurences,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  start_station_name
+ORDER BY
+  start_station_occurences DESC;
+
+/* 
+start_station_name findings:
+- There are 833 064 NULL values in the start_station_name field
+- There are 1 675 unique start station names
+- The most popular start station is Streeter Drive & Grand Ave 
+*/
+
+## Check if there are records with the same start and end station name with trip duration of less than 2 minutes ##
+
+SELECT
+  ride_id,
+  start_station_name,
+  end_station_name,
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  start_station_name = end_station_name AND
+  start_station_id = end_station_id AND
+  TIMESTAMP_DIFF(ended_at, started_at, MINUTE) < 2;
+
+/*
+- There are 89 543 trips that start and end at the same station and are less than 2 minutes. These could be instances where people undock a bike and then decide not to use the bike. These records will be removed in cleaning.
+*/
+
+
+## Check the start_station_id field (datatype = string) for NULLS ##
+
+# Check start_station_id for NULLS #
+SELECT
+  COUNT(*) as count_of_null
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  start_station_id IS NULL;
+
+SELECT
+  rideable_type,
+  start_station_id
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  rideable_type != "electric_bike" AND
+  start_station_id IS NULL;
+
+/* 
+start_station_id findings:
+- There are 833 064 NULL values in the start_station_id field (the same as the start_staion_name field)
+- All nulls in the start_station_id field belong to electric bikes due to electric bikes not having to dock at a station
+*/
+
+
+## Check the end_station_name field (datatype = string) for NULLS and end station popularity ##
+
+# Check for NULLS #
+SELECT
+  COUNT(*) as count_of_null
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  end_station_name IS NULL;
+
+# Get number of unique end station names and view the most popular end station #
+SELECT
+  end_station_name,
+  COUNT(end_station_name) AS end_station_occurences,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  end_station_name
+ORDER BY
+  end_station_occurences DESC;
+
+/* end_station_name findings:
+- There are 8 892 742 NULL values in the end_station_name field
+- There are 1 693 unique end station names
+- The most popular end station is Streeter Drive & Grand Ave
+*/
+
+
+## Check the end_station_id field (datatype = string) for NULLS and unique IDs ##
+
+# Check start_station_id for NULLS #
+SELECT
+  COUNT(*) as count_of_null
+FROM
+ `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  end_station_id IS NULL;
+
+# Get number of unique end station IDs #
+SELECT
+  end_station_id,
+  COUNT(end_station_id) AS end_ids_occurences,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  end_station_id
+ORDER BY
+  end_ids_occurences DESC;
+
+/* 
+end_station_id findings:
+- There are 892 742 NULL values in the end_station_id field (the same as the end_staion_name field)
+- There are 1 344 unique end station ids (end_station_name has 1 693 unique station names).
+*/
+
+
+## How many rows have NULL values for start and end station name? ##
+SELECT
+  COUNT(*) as count_of_nulls
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  start_station_name IS NULL AND end_station_name IS NULL;
+
+/* 
+- 427 449 rows of the data contain NULLS in both the start_station_name and end_station_name 
+*/
+
+
+## What bike type is associated with NULLS for start and end stations ##
+
+# View bikes associated NULL start and end station #
+SELECT
+  rideable_type,
+  COUNT(rideable_type) as bikes_with_null_stations
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  start_station_name IS NULL AND end_station_name IS NULL
+GROUP BY
+  rideable_type;
+
+# See if electric bikes are seen to start and end at stations #
+SELECT
+  start_station_name,
+  COUNT(start_station_name) AS electric_bike_stations
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  rideable_type = "electric_bike"
+GROUP BY
+  start_station_name
+ORDER BY
+  electric_bike_stations DESC;
+
+SELECT
+  end_station_name,
+  COUNT(end_station_name) AS electric_bike_stations
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  rideable_type = "electric_bike"
+GROUP BY
+  end_station_name
+ORDER BY
+  electric_bike_stations DESC;
+
+/* 
+NULLS on start and end stations:
+- Only the electric_bike has NULLS for both start and end station. This is because these bikes do not have to be docked and undocked from a station. They can be locked and left near docking stations
+- Electric bikes are seen to start and end at stations in the data.
+- These start and end station NULLS associated with electric bikes will not be removed from the data. I will rename them to "locked_near_station" during cleaning.
+
+- Electric bikes are therefore allowed to have nulls in the start and end station. Classic should not have nulls in the start or end station fields. During cleaning I will remove these rows.
+*/
+
+
+## Explore long and lat fields (FLOAT data type) ##
+
+SELECT
+  COUNT(*) AS nulls_in_start_lat
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  start_lat IS NULL;
+--
+SELECT
+  COUNT(*) AS nulls_in_start_lng
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  start_lng IS NULL;
+--
+SELECT
+  COUNT(*) AS nulls_in_end_lat
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  end_lat IS NULL;
+--
+SELECT
+  COUNT(*) AS nulls_in_end_lng
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  end_lng IS NULL;
+--
+SELECT
+  end_lat,
+  end_lng
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  end_lat IS NULL AND end_lng IS NULL;
+
+/* 
+Findings in long and lat fields:
+- There are no NULLS and start_lat and start_lng fields
+- There are 5 858 NULLS in end_lat and 5 858 NULLS in end_lng (same rows)
+*/
+
+
+## Check the member_casual field (datatype = string) for NULLS or any mispelled entries ##
+
+# Check for NULLS #
+SELECT
+  COUNT(*) as count_of_nulls
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+WHERE
+  member_casual IS NULL;
+
+# View number of rides per member_casual #
+SELECT
+  member_casual as member_casual_check,
+  COUNT(*) AS num_of_rides
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  member_casual;
+
+# View percentage of total rides for member and casual #
+SELECT
+  member_casual as member_casual_check,
+  COUNT(*) AS num_of_customers,
+  (
+    SELECT
+      COUNT(*)
+    FROM
+      `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+  )
+  AS total_rides,
+  ROUND(COUNT(*) * 100 / 
+  (
+    SELECT COUNT(*) FROM `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+  ), 2)
+  AS percentage_of_rides,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+GROUP BY
+  member_casual;
+
+/* member_casual field findings:
+- There are no nulls member_casual field
+- 2 322 032 rides were undertaken by casual customers (40.97% of total rides)
+- 3 345 685 rides were undertaken by annual members (59.03% of total rides)
+*/
+
+### Data Exploration Complete ###
+
+/* Notes for data cleaning:
+- Duplicate ride IDs and ride IDs with fewer than 16 characters will be removed 
+- Remove records where the rideable type is "docked_bike"
+- Rows with a trip duration of less than a minute will be removed.
+- Rows with a trip duration of more than one day (1 440 minutes) will be removed.
+- Electric bikes with NULLS in the start and end stations will be renamed to "locked_near_station"
+- Classic or docked bikes with NULLS in the start or end station fields will be removed.
+*/
+
+---------------------------------------------------------------------------------------------------
