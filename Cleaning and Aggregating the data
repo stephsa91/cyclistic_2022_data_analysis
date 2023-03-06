@@ -314,6 +314,15 @@ FROM
 GROUP BY
   season;
 
+# Average trip duration per bike type #
+SELECT
+  rideable_type,
+  AVG(trip_duration) AS bike_type_TD
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+GROUP BY
+  rideable_type;
+
 # Top 10 popular start stations for members #
 SELECT
   year,
