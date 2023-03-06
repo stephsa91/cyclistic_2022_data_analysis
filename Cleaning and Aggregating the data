@@ -1,0 +1,398 @@
+### Cleaning and Aggregating the Cyclistic 2022 All Trips Data ###
+
+/*
+To Do List: 
+1. Create version 2 of data and add trip duration, time_of_day, week day, month, season, year
+2. Delete unnecessary records
+3. Rename electric bike records with NULLS in start and end stations to "locked_near_station" and start and end IDs to "lns"
+4. Aggregate the data to identify trends and for visualiation
+*/
+
+## Create version 2 of data and add trip duration, time_of_day, week day, day number, month, season, year ##
+CREATE OR REPLACE TABLE  cyclistic_data_2022.alltrips_2022_v2 AS
+  (
+    SELECT
+    *,
+    TIMESTAMP_DIFF(ended_at, started_at, MINUTE) AS trip_duration,
+    CASE
+      WHEN EXTRACT(HOUR FROM started_at) between 4 and 6 THEN "Early Morning"
+      WHEN EXTRACT(HOUR FROM started_at) between 7 and 11 THEN "Morning"
+      WHEN EXTRACT(HOUR FROM started_at) between 12 and 16 THEN "Afternoon"
+      WHEN EXTRACT(HOUR FROM started_at) between 17 and 20 THEN "Evening"
+      ELSE "Night"
+    END AS time_of_day,
+    CASE
+      WHEN EXTRACT(DAYOFWEEK FROM started_at) = 1 THEN "Sunday"
+      WHEN EXTRACT(DAYOFWEEK FROM started_at) = 2 THEN "Monday"
+      WHEN EXTRACT(DAYOFWEEK FROM started_at) = 3 THEN "Tuesday"
+      WHEN EXTRACT(DAYOFWEEK FROM started_at) = 4 THEN "Wednesday"
+      WHEN EXTRACT(DAYOFWEEK FROM started_at) = 5 THEN "Thursday"
+      WHEN EXTRACT(DAYOFWEEK FROM started_at) = 6 THEN "Friday"
+      ELSE "Saturday"
+    END AS week_day,
+      CASE
+      WHEN EXTRACT(MONTH FROM started_at) = 1 THEN "January"
+      WHEN EXTRACT(MONTH FROM started_at) = 2 THEN "February"
+      WHEN EXTRACT(MONTH FROM started_at) = 3 THEN "March"
+      WHEN EXTRACT(MONTH FROM started_at) = 4 THEN "April"
+      WHEN EXTRACT(MONTH FROM started_at) = 5 THEN "May"
+      WHEN EXTRACT(MONTH FROM started_at) = 6 THEN "June"
+      WHEN EXTRACT(MONTH FROM started_at) = 7 THEN "July"
+      WHEN EXTRACT(MONTH FROM started_at) = 8 THEN "August"
+      WHEN EXTRACT(MONTH FROM started_at) = 9 THEN "September"
+      WHEN EXTRACT(MONTH FROM started_at) = 10 THEN "October"
+      WHEN EXTRACT(MONTH FROM started_at) = 11 THEN "November"
+    ELSE "December"
+    END AS month,
+    CASE
+      WHEN EXTRACT(MONTH FROM started_at) = 1 THEN "Winter"
+      WHEN EXTRACT(MONTH FROM started_at) = 2 THEN "Winter"
+      WHEN EXTRACT(MONTH FROM started_at) = 3 THEN "Spring"
+      WHEN EXTRACT(MONTH FROM started_at) = 4 THEN "Spring"
+      WHEN EXTRACT(MONTH FROM started_at) = 5 THEN "Spring"
+      WHEN EXTRACT(MONTH FROM started_at) = 6 THEN "Summer"
+      WHEN EXTRACT(MONTH FROM started_at) = 7 THEN "Summer"
+      WHEN EXTRACT(MONTH FROM started_at) = 8 THEN "Summer"
+      WHEN EXTRACT(MONTH FROM started_at) = 9 THEN "Autumn"
+      WHEN EXTRACT(MONTH FROM started_at) = 10 THEN "Autumn"
+      WHEN EXTRACT(MONTH FROM started_at) = 11 THEN "Autumn"
+      ELSE "Winter"
+    END AS season,
+    EXTRACT(YEAR FROM started_at) AS year,
+    FROM
+    `cyclisticcapstone-377116.cyclistic_data_2022.all_trips_2022`
+  );
+
+-----------------------------------------------------------------------------------------------
+
+## Delete unnecessary records ##
+
+# Remove records that contain ride IDs that do not have 16 characters #
+DELETE FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+WHERE
+  LENGTH(ride_id) < 16;
+
+/*
+Once these ride IDs were removed, there were no longer duplicate ride IDs
+*/
+
+# Remove records where the rideable type is "docked_bike" -- #
+DELETE FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+WHERE
+  rideable_type = "docked_bike";
+
+# Remove records with a trip duration of less than a minute #
+DELETE FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+WHERE
+  trip_duration < 1;
+
+# Remove records with a trip duration of more than a day #
+DELETE FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+WHERE
+  trip_duration > 1440;
+
+# Remove records where the bike type is classic or docked and there are NULLS in the start and/or end station names #
+DELETE FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+WHERE
+  rideable_type <> "electric_bike" AND
+  start_station_name IS NULL OR
+  end_station_name IS NULL;
+
+# Remove records where the trip duration is less than 2 minutes and where the trip starts and ends at the same station #
+DELETE FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+WHERE
+  start_station_name = end_station_name AND
+  start_station_id = end_station_id AND
+  TIMESTAMP_DIFF(ended_at, started_at, MINUTE) < 2;
+
+----------------------------------------------------------------------------
+
+## Rename electric bike records with NULLS in start and end stations to "locked_near_station" and start and end IDs to "lns" ##
+UPDATE
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+SET
+  start_station_name = "locked_near_station", end_station_name = "locked_near_station", start_station_id = "lns", end_station_id = "lns"
+WHERE
+  rideable_type = "electric_bike" AND
+  start_station_name IS NULL AND
+  start_station_name IS NULL;
+
+----------------------------------------------------------------------------------------------
+
+## Aggregate the data to identify trends and for visualiation ##
+SELECT
+  COUNT(*)
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`;
+
+SELECT
+  year,
+  AVG(trip_duration)
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+GROUP BY
+  year;
+
+SELECT
+  member_casual,
+  AVG(trip_duration)
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+GROUP BY
+  member_casual;
+
+
+/*
+Cleaned data findings:
+- There are 5 490 243 rows
+- The average trip duration is 15.98 minutes
+- The average trip duration for members is 12.56 minutes and the average trip duration for casual users is 21.31 minutes. Casual users have a longer average trip_duration.
+*/
+ 
+
+# Seasonal trips by member_casual # 
+SELECT
+  season,
+  COUNT(*) AS total_rides,
+  COUNT(CASE WHEN member_casual = "member" THEN 1 ELSE NULL END) AS member_rides,
+  COUNT(CASE WHEN member_casual = "casual" THEN 1 ELSE NULL END) AS casual_rides,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+GROUP BY
+  season;
+
+# Number of member/casual trips per month #
+SELECT
+  EXTRACT(MONTH FROM started_at) AS month_num,
+  month,
+  COUNT(CASE WHEN member_casual = "member" THEN 1 ELSE NULL END) AS member_rides,
+  COUNT(CASE WHEN member_casual = "casual" THEN 1 ELSE NULL END) AS casual_rides,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+GROUP BY
+  month_num,
+  month
+ORDER BY
+  month_num;
+
+# Member/casual trips per week day #
+SELECT
+  EXTRACT(DAYOFWEEK FROM started_at) AS day_num,
+  week_day AS week_day,
+  COUNT(CASE WHEN member_casual = "member" THEN 1 ELSE NULL END) AS member_weekday_rides,
+  COUNT(CASE WHEN member_casual = "casual" THEN 1 ELSE NULL END) AS casual_weekday_rides,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+GROUP BY
+  day_num,
+  week_day
+ORDER BY
+  day_num;
+
+# Member/casual trips per time of day #
+SELECT
+  EXTRACT(HOUR FROM started_at) AS hour_of_day,
+  CASE
+    WHEN EXTRACT(HOUR FROM started_at) = 0 THEN "12am"
+    WHEN EXTRACT(HOUR FROM started_at) = 1 THEN "1am"
+    WHEN EXTRACT(HOUR FROM started_at) = 2 THEN "2am"
+    WHEN EXTRACT(HOUR FROM started_at) = 3 THEN "3am"
+    WHEN EXTRACT(HOUR FROM started_at) = 4 THEN "4am"
+    WHEN EXTRACT(HOUR FROM started_at) = 5 THEN "5am"
+    WHEN EXTRACT(HOUR FROM started_at) = 6 THEN "6am"
+    WHEN EXTRACT(HOUR FROM started_at) = 7 THEN "7am"
+    WHEN EXTRACT(HOUR FROM started_at) = 8 THEN "8am"
+    WHEN EXTRACT(HOUR FROM started_at) = 9 THEN "9am"
+    WHEN EXTRACT(HOUR FROM started_at) = 10 THEN "10am"
+    WHEN EXTRACT(HOUR FROM started_at) = 11 THEN "11am"
+    WHEN EXTRACT(HOUR FROM started_at) = 12 THEN "12pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 13 THEN "1pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 14 THEN "2pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 15 THEN "3pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 16 THEN "4pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 17 THEN "5pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 18 THEN "6pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 19 THEN "7pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 20 THEN "8pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 21 THEN "9pm"
+    WHEN EXTRACT(HOUR FROM started_at) = 22 THEN "10pm"
+    ELSE "11pm"
+  END AS day_hour,
+  time_of_day,
+  week_day,
+  COUNT(CASE WHEN member_casual = "member" THEN 1 ELSE NULL END) AS member_trips,
+  COUNT(CASE WHEN member_casual = "casual" THEN 1 ELSE NULL END) AS casual_trips,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+GROUP BY
+  hour_of_day,
+  day_hour,
+  time_of_day,
+  week_day
+ORDER BY
+  hour_of_day;
+
+# Trips travelled per User Type in 2022 #
+
+SELECT
+  member_casual,
+  COUNT(*) as number_of_trips
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+GROUP BY
+  member_casual;
+
+# Total minutes travelled in 2022 #
+SELECT
+  SUM(trip_duration) as total_minutes
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`;
+
+
+# Member_Casual minutes travelled in 2022 #
+SELECT
+  member_casual,
+  SUM(trip_duration) AS trip_minutes
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+GROUP BY
+  member_casual;
+
+
+# Overall Member/casual average trip duration #
+SELECT
+  member_casual,
+  ROUND(AVG(trip_duration), 1) AS avg_trip_duration,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+GROUP BY
+  member_casual;
+
+# Member/casual average trip duration per month #
+SELECT
+  EXTRACT(MONTH FROM started_at) AS month_num,
+  month,
+  ROUND(AVG(CASE WHEN member_casual = "member" THEN trip_duration ELSE 0 END), 1) AS member_AVG_TD_mins,
+  ROUND(AVG(CASE WHEN member_casual = "casual" THEN trip_duration ELSE 0 END), 1) AS casual_AVG_TD_mins,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+GROUP BY
+  month_num,
+  month
+ORDER BY
+  month_num;
+
+# Member/casual average trip duration per week day #
+SELECT
+  EXTRACT(DAYOFWEEK FROM started_at) AS day_num,
+  week_day,
+  ROUND(AVG(CASE WHEN member_casual = "member" THEN trip_duration ELSE 0 END), 1) AS member_AVG_TD_mins,
+  ROUND(AVG(CASE WHEN member_casual = "casual" THEN trip_duration ELSE 0 END), 1) AS casual_AVG_TD_mins,
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2`
+GROUP BY
+  day_num,
+  week_day
+ORDER BY
+  day_num;
+
+# Usertype Bike choice by season #
+SELECT
+  season,
+  COUNT(CASE WHEN member_casual = "member" AND rideable_type = "classic_bike" THEN 1 ELSE NULL END) AS member_classic,
+  COUNT(CASE WHEN member_casual = "member" AND rideable_type = "electric_bike" THEN 1 ELSE NULL END) AS member_electric, 
+  COUNT(CASE WHEN member_casual = "casual" AND rideable_type = "classic_bike" THEN 1 ELSE NULL END) AS casual_classic,
+  COUNT(CASE WHEN member_casual = "casual" AND rideable_type = "electric_bike" THEN 1 ELSE NULL END) AS member_electric
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+GROUP BY
+  season;
+
+# Top 10 popular start stations for members #
+SELECT
+  year,
+  start_station_name,
+  AVG(start_lat) AS start_lat,
+  AVG(start_lng) AS start_long,
+  COUNT(*) AS number_of_visits
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+WHERE
+  member_casual = "member" AND
+  start_station_name IS NOT NULL
+GROUP BY
+  year,
+  start_station_name
+ORDER BY
+  number_of_visits DESC
+LIMIT
+  10;
+
+# Top 10 popular end stations for members #
+SELECT
+  year,
+  end_station_name,
+  AVG(end_lat) AS end_lat,
+  AVG(end_lng) AS end_long,
+  COUNT(*) AS number_of_visits
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+WHERE
+  member_casual = "member" AND
+  end_station_name IS NOT NULL
+GROUP BY
+  year,
+  end_station_name
+ORDER BY
+  number_of_visits DESC
+LIMIT
+  10;
+
+# Top 10 popular start stations for casual users #
+SELECT
+  year,
+  start_station_name,
+  AVG(start_lat) AS start_lat,
+  AVG(start_lng) AS start_long,
+  COUNT(*) AS number_of_visits
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+WHERE
+  member_casual = "casual" AND
+  start_station_name IS NOT NULL
+GROUP BY
+  year,
+  start_station_name
+ORDER BY
+  number_of_visits DESC
+LIMIT
+  10;
+
+# Top 10 popular end stations for causal users #
+SELECT
+  year,
+  end_station_name,
+  AVG(end_lat) AS end_lat,
+  AVG(end_lng) AS end_long,
+  COUNT(*) AS number_of_visits
+FROM
+  `cyclisticcapstone-377116.cyclistic_data_2022.alltrips_2022_v2` 
+WHERE
+  member_casual = "casual" AND
+  end_station_name IS NOT NULL
+GROUP BY
+  year,
+  end_station_name
+ORDER BY
+  number_of_visits DESC
+LIMIT
+  10;
+
+
+### End of Cleaning and Aggregating the Cyclistic 2022 All Trips Data ###
